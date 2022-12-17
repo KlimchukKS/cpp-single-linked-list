@@ -44,17 +44,15 @@ class SingleLinkedList {
         }
 
         [[nodiscard]] bool operator!=(const BasicIterator<const Type>& rhs) const noexcept {
-            return node_ != rhs.node_;
+            return !(node_ == rhs.node_);
         }
 
-        // Оператор сравнения итераторов (в роли второго аргумента итератор)
-        // Два итератора равны, если они ссылаются на один и тот же элемент списка либо на end()
         [[nodiscard]] bool operator==(const BasicIterator<Type>& rhs) const noexcept {
             return node_ == rhs.node_;
         }
 
         [[nodiscard]] bool operator!=(const BasicIterator<Type>& rhs) const noexcept {
-            return node_ != rhs.node_;
+            return !(node_ == rhs.node_);
         }
 
         BasicIterator& operator++() noexcept {
@@ -62,7 +60,6 @@ class SingleLinkedList {
             node_ = node_->next_node;
             return *this;
         }
-
 
         BasicIterator operator++(int) noexcept {
             auto old_value(*this);
@@ -119,44 +116,17 @@ public:
         : size_(0) {}
 
     void Clear() noexcept {
-        if(!head_.next_node){
-            size_ = 0;
-            last = nullptr;
-            return;
+        for(; size_ != 0; --size_) {
+            delete std::exchange(head_.next_node, head_.next_node->next_node);
         }
-        Node* deleted_node = head_.next_node;
-        head_.next_node = deleted_node->next_node;
-        delete deleted_node;
-        deleted_node = nullptr;
-        Clear();
     }
 
     ~SingleLinkedList() {
         Clear();
     }
 
-    void SetFirstNode(const Type& value) {
-        head_.next_node = new Node(value, head_.next_node);
-        last = head_.next_node;
-        ++size_;
-    }
-
     void PushFront(const Type& value) {
-        if (IsEmpty()) {
-            SetFirstNode(value);
-            return;
-        }
         head_.next_node = new Node(value, head_.next_node);
-        ++size_;
-    }
-
-    void PushBack(const Type& value) {
-        if (IsEmpty()) {
-            SetFirstNode(value);
-            return;
-        }
-        last->next_node = new Node(value, nullptr);
-        last = last->next_node;
         ++size_;
     }
 
@@ -168,12 +138,6 @@ public:
         return !size_;
     }
 
-    template<typename ContainerType>
-    void SetSingleLinkedList(ContainerType& container){
-        for(auto it : container) {
-            this->PushBack(it);
-        }
-    }
     SingleLinkedList(std::initializer_list<Type> values) {
         SetSingleLinkedList(values);
     }
@@ -183,6 +147,9 @@ public:
     }
 
     SingleLinkedList& operator=(const SingleLinkedList& rhs) {
+        if (this == &rhs) {
+            return *this;
+        }
         SingleLinkedList tmp(rhs);
         swap(tmp);
         return *this;
@@ -206,34 +173,39 @@ public:
     }
 
     Iterator InsertAfter(ConstIterator pos, const Type& value) {
-        Node* new_node = new Node(value, pos.node_->next_node);
-        pos.node_->next_node = new_node;
+        assert (pos.node_ != nullptr);
+        pos.node_->next_node = new Node(value, pos.node_->next_node);
         ++size_;
-        return Iterator{new_node};
+        return Iterator{pos.node_->next_node};
     }
 
     void PopFront() noexcept {
-        assert (head_.next_node != nullptr);
-        Node* tmp = head_.next_node->next_node;
-        delete head_.next_node;
-        head_.next_node = tmp;
+        assert (!(this->IsEmpty()));
+        delete std::exchange(head_.next_node, head_.next_node->next_node);
+        --size_;
     }
-
+    
     Iterator EraseAfter(ConstIterator pos) noexcept {
         assert (pos.node_->next_node != nullptr);
-        Node* tmp = pos.node_->next_node->next_node;
-        delete pos.node_->next_node;
-        pos.node_->next_node = tmp;
-
+        assert (pos.node_ != nullptr);
+        delete std::exchange(pos.node_->next_node, pos.node_->next_node->next_node);
+        --size_;
         return Iterator{pos.node_->next_node};
     }
 
 private:
-    // Фиктивный узел, используется для вставки "перед первым элементом"
     Node head_;
-    // указатель на последний узел
-    Node* last;
     size_t size_ = 0;
+
+    template<typename ContainerType>
+    void SetSingleLinkedList(ContainerType& container) {
+        Node* last = &head_;
+        for(auto it : container) {
+            last->next_node = new Node(it, nullptr);
+            last = last->next_node;
+            ++size_;
+        }
+    }
 };
 
 template <typename Type>
@@ -248,7 +220,7 @@ bool operator==(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>&
 
 template <typename Type>
 bool operator!=(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& rhs) {
-    return !(std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end()));
+    return !(lhs == rhs);
 }
 
 template <typename Type>
@@ -258,7 +230,7 @@ bool operator<(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& 
 
 template <typename Type>
 bool operator<=(const SingleLinkedList<Type>& lhs, const SingleLinkedList<Type>& rhs) {
-    return ((lhs < rhs) || (lhs == rhs));
+    return (!(lhs > rhs));
 }
 
 template <typename Type>
